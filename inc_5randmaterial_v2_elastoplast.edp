@@ -1,0 +1,502 @@
+load "iovtk"
+load "msh3"
+load "tetgen"
+load "mshmet"
+load "medit"
+
+// Input parameters
+// Cubic elastic constants of copper in crystal frame
+real c11 = 170000; // (MPa)
+real c12 = 124000; // (MPa)
+real c44 = 75000; // (MPa)
+
+// Frame geometry and meshing
+real x0=0.0,x1=20.0;  // Dimensions 
+real y0=0.0,y1=100.0;
+real z0=0.0,z1=20.0;
+int nx=3,ny=5000,nz=3; // Numbers of points
+//int nx=20,ny=100,nz=20; // Numbers of points
+int[int] rup=[0,6], rdown=[0,5]; // 2D region -> 3D label
+
+mesh Carre=square(nx,ny,[x0+(x1-x0)*x,y0+(y1-y0)*y],flags=1);
+mesh3 Th=buildlayers(Carre,nz,zbound=[z0,z1],labelup=rup,labeldown=rdown);
+
+int[int] fforder(100); // Parameter to be used for the writing of the results in a vtk file 
+fforder = 1;
+
+// Elastic moduli tensor in cubic crystal frame
+real [int,int] C = [ 
+                    [c11,c12,c12,0.,0.,0.],
+                    [c12,c11,c12,0.,0.,0.],
+                    [c12,c12,c11,0.,0.,0.],
+                    [0.,0.,0.,c44,0.,0.],
+                    [0.,0.,0.,0.,c44,0.],
+                    [0.,0.,0.,0.,0.,c44]
+                    ];
+
+real [int,int] D(6,6);
+real [int,int] D1(6,6);
+real [int,int] D2(6,6);
+real [int,int] D3(6,6);
+real [int,int] D4(6,6);
+real [int,int] D5(6,6);
+real [int,int] RR1(3,3);
+real [int,int] RR2(3,3);
+real [int,int] RR3(3,3);
+real [int,int] RR4(3,3);
+real [int,int] RR5(3,3);
+real [int,int] RLG(3,3);
+real [int,int] Passag(6,6);
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// MATERIAL 1
+/////////////////////////////////////////////////////////////////////////////////////////////////
+RR1 = [
+   [0.189729656890999,   0.196566945738001,  -0.961958467471053],
+   [-0.481435972569784,   0.872510636201801,   0.083334230844920],
+   [0.855699749685490,   0.447310435333183,   0.260175542336762]
+   ];
+      
+RR2 = [
+   [-0.148807408440203,  -0.985132688514902,  -0.085848361735749],
+   [-0.951053078482920,   0.166354547112436,  -0.260430809550594],
+   [0.270840168921584,   0.042892314864292,  -0.961668265164298]
+  ];
+
+RR3 = [
+   [0.711338540524936,  -0.586273165394322,   0.387661264898076],
+   [0.694736384699071,   0.670067524264891,  -0.261439990630325],
+   [-0.106483973156147,   0.455294727032986,   0.883950154135876]
+  ];
+  
+RR4 = [
+  [0.232714667030303,  -0.854081058824668,  -0.465176771459957],
+  [-0.953658744980457, -0.106594978845322,  -0.281376098144929],
+  [ 0.190732487718466,   0.509100241054646,  -0.839308085679404]
+   ];
+   
+RR5 = [
+   [0.169359417591142,   0.973461511912371,  -0.153915796780153],
+   [0.446911825913475,  -0.215047890068773,  -0.868345682798995],
+   [-0.878400368585916,   0.078275729330675,  -0.471471847161501]
+   ];   
+
+for (int mat=1;mat<6;mat++)
+	{ 
+		if (mat==1)
+			{
+			 RLG=RR1;
+			}
+			if (mat==2)
+			{
+			 RLG=RR2;
+			}
+			if (mat==3)
+			{
+			 RLG=RR3;
+			}
+			if (mat==4)
+			{
+			 RLG=RR4;
+			}
+			if (mat==5)
+			{
+			 RLG=RR5;
+			}
+
+// Convention 23 --> 4, 31 --> 5, 12 --> 6   
+		Passag(0,0)=RLG(0,0)*RLG(0,0);
+		Passag(0,1)=RLG(0,1)*RLG(0,1);
+		Passag(0,2)=RLG(0,2)*RLG(0,2);
+		Passag(0,5)=2*RLG(0,0)*RLG(0,1);
+		Passag(0,4)=2*RLG(0,0)*RLG(0,2);
+		Passag(0,3)=2*RLG(0,1)*RLG(0,2);
+
+		Passag(1,0)=RLG(1,0)*RLG(1,0);
+		Passag(1,1)=RLG(1,1)*RLG(1,1);
+		Passag(1,2)=RLG(1,2)*RLG(1,2);
+		Passag(1,5)=2*RLG(1,0)*RLG(1,1);
+		Passag(1,4)=2*RLG(1,0)*RLG(1,2);
+		Passag(1,3)=2*RLG(1,1)*RLG(1,2);
+
+		Passag(2,0)=RLG(2,0)*RLG(2,0);
+		Passag(2,1)=RLG(2,1)*RLG(2,1);
+		Passag(2,2)=RLG(2,2)*RLG(2,2);
+		Passag(2,5)=2*RLG(2,0)*RLG(2,1);
+		Passag(2,4)=2*RLG(2,0)*RLG(2,2);
+		Passag(2,3)=2*RLG(2,1)*RLG(2,2);
+
+		Passag(5,0)=RLG(0,0)*RLG(1,0);
+		Passag(5,1)=RLG(0,1)*RLG(1,1);
+		Passag(5,2)=RLG(0,2)*RLG(1,2);
+		Passag(5,5)=RLG(0,0)*RLG(1,1)+RLG(0,1)*RLG(1,0);
+		Passag(5,4)=RLG(0,0)*RLG(1,2)+RLG(0,2)*RLG(1,0);
+		Passag(5,3)=RLG(0,1)*RLG(1,2)+RLG(0,2)*RLG(1,1);
+
+		Passag(4,0)=RLG(0,0)*RLG(2,0);
+		Passag(4,1)=RLG(0,1)*RLG(2,1);
+		Passag(4,2)=RLG(0,2)*RLG(2,2);
+		Passag(4,5)=RLG(0,0)*RLG(2,1)+RLG(0,1)*RLG(2,0);
+		Passag(4,4)=RLG(0,0)*RLG(2,2)+RLG(0,2)*RLG(2,0);
+		Passag(4,3)=RLG(0,1)*RLG(2,2)+RLG(0,2)*RLG(2,1);
+
+		Passag(3,0)=RLG(1,0)*RLG(2,0);
+		Passag(3,1)=RLG(1,1)*RLG(2,1);
+		Passag(3,2)=RLG(1,2)*RLG(2,2);
+		Passag(3,5)=RLG(1,0)*RLG(2,1)+RLG(1,1)*RLG(2,0);
+		Passag(3,4)=RLG(1,0)*RLG(2,2)+RLG(1,2)*RLG(2,0);
+		Passag(3,3)=RLG(1,1)*RLG(2,2)+RLG(1,2)*RLG(2,1);  
+
+// Elastic moduli tensor in global frame (x,y) 
+		D=0.;
+		for (int i=0;i<6;i++)
+		{ 
+			 for (int j=0;j<6;j++)
+			 {
+				 for (int k=0;k<6;k++)
+				 {
+					 for (int l=0;l<6;l++)
+					 {
+						D(i,j)=D(i,j)+C(k,l)*Passag(i,k)*Passag(j,l);
+					 }; 
+				 };
+			 };
+		};  
+		
+		if (mat==1)
+			{
+			 D1=D;
+			}
+			if (mat==2)
+			{
+			 D2=D;
+			}
+			if (mat==3)
+			{
+			 D3=D;
+			}
+			if (mat==4)
+			{
+			 D4=D;
+			}
+			if (mat==5)
+			{
+			 D5=D;
+			}
+	};
+	
+func CC01=[
+         [D1(0,0), D1(0,1),D1(0,2),D1(0,3),D1(0,4),D1(0,5)],
+         [D1(1,0), D1(1,1),D1(1,2),D1(1,3),D1(1,4),D1(1,5)],
+         [D1(2,0), D1(2,1),D1(2,2),D1(2,3),D1(2,4),D1(2,5)],
+         [D1(3,0), D1(3,1),D1(3,2),D1(3,3),D1(3,4),D1(3,5)],
+         [D1(4,0), D1(4,1),D1(4,2),D1(4,3),D1(4,4),D1(4,5)],
+         [D1(5,0), D1(5,1),D1(5,2),D1(5,3),D1(5,4),D1(5,5)]
+         ];   
+
+func CC02=[
+         [D2(0,0), D2(0,1),D2(0,2),D2(0,3),D2(0,4),D2(0,5)],
+         [D2(1,0), D2(1,1),D2(1,2),D2(1,3),D2(1,4),D2(1,5)],
+         [D2(2,0), D2(2,1),D2(2,2),D2(2,3),D2(2,4),D2(2,5)],
+         [D2(3,0), D2(3,1),D2(3,2),D2(3,3),D2(3,4),D2(3,5)],
+         [D2(4,0), D2(4,1),D2(4,2),D2(4,3),D2(4,4),D2(4,5)],
+         [D2(5,0), D2(5,1),D2(5,2),D2(5,3),D2(5,4),D2(5,5)]
+         ];    		 
+         
+
+func CC03=[
+         [D3(0,0), D3(0,1),D3(0,2),D3(0,3),D3(0,4),D3(0,5)],
+         [D3(1,0), D3(1,1),D3(1,2),D3(1,3),D3(1,4),D3(1,5)],
+         [D3(2,0), D3(2,1),D3(2,2),D3(2,3),D3(2,4),D3(2,5)],
+         [D3(3,0), D3(3,1),D3(3,2),D3(3,3),D3(3,4),D3(3,5)],
+         [D3(4,0), D3(4,1),D3(4,2),D3(4,3),D3(4,4),D3(4,5)],
+         [D3(5,0), D3(5,1),D3(5,2),D3(5,3),D3(5,4),D3(5,5)]
+         ];  
+		 
+func CC04=[
+         [D4(0,0), D4(0,1),D4(0,2),D4(0,3),D4(0,4),D4(0,5)],
+         [D4(1,0), D4(1,1),D4(1,2),D4(1,3),D4(1,4),D4(1,5)],
+         [D4(2,0), D4(2,1),D4(2,2),D4(2,3),D4(2,4),D4(2,5)],
+         [D4(3,0), D4(3,1),D4(3,2),D4(3,3),D4(3,4),D4(3,5)],
+         [D4(4,0), D4(4,1),D4(4,2),D4(4,3),D4(4,4),D4(4,5)],
+         [D4(5,0), D4(5,1),D4(5,2),D4(5,3),D4(5,4),D4(5,5)]
+         ]; 
+         
+func CC05=[
+         [D5(0,0), D5(0,1),D5(0,2),D5(0,3),D5(0,4),D5(0,5)],
+         [D5(1,0), D5(1,1),D5(1,2),D5(1,3),D5(1,4),D5(1,5)],
+         [D5(2,0), D5(2,1),D5(2,2),D5(2,3),D5(2,4),D5(2,5)],
+         [D5(3,0), D5(3,1),D5(3,2),D5(3,3),D5(3,4),D5(3,5)],
+         [D5(4,0), D5(4,1),D5(4,2),D5(4,3),D5(4,4),D5(4,5)],
+         [D5(5,0), D5(5,1),D5(5,2),D5(5,3),D5(5,4),D5(5,5)]
+         ];  
+        
+/////////////////////////////////////////////////////////////////////////////////////////     
+fespace Vh(Th,P23d);     // FE space with quadratic interpolation
+//fespace Vh(Th,P13d);     // FE space with linear interpolation
+//fespace Vh2(Th,[P13d,P13d,P13d],periodic=[[2,y,z],[4,y,z],[1,x,z],[3,x,z],[5,x,y],[6,x,y]]); // FE space with linear interpolation and periodic boundary conditions
+fespace Vh2(Th,[P13d,P13d,P13d],periodic=[[2,y,z],[4,y,z],[5,x,y],[6,x,y]]); // FE space with linear interpolation and periodic boundary conditions
+//fespace Vh2(Th,[P13d,P13d,P13d]);
+
+Vh uh,vh;              
+Vh Sp11,Sp12,Sp22,Sp13,Sp23,Sp33; // components of the plastic strain tensor
+Vh S11,S12,S22,S13,S23,S33; // components of the total strain tensor 
+Vh T11,T12,T22,T13,T23,T33; // components of the stress tensor
+Vh xo,yo,gr; // to define the two grains
+
+Vh2 [u1,u2,u3],[v1,v2,v3];
+
+int nbv = T11.n;   // length of the vectors
+
+func Sp = [Sp11,Sp22,Sp33,Sp23,Sp13,Sp12];
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+xo=x;
+yo=y;
+gr=1;
+
+// Materials 2 and 3
+for (int l=0;l<nbv;l++)
+{
+	if (yo[][l]<15.0)
+	{
+         gr[][l]=5;
+	}
+    if (yo[][l]>=15.0 && yo[][l]<35.0)
+	{
+         gr[][l]=4;
+	}
+	if (yo[][l]>=35.0 && yo[][l]<65.0)
+	{
+         gr[][l]=3;
+	}
+	if (yo[][l]>=65.0 && yo[][l]<=75.0)
+	{
+         gr[][l]=2;
+	}
+}  
+
+Vh gr1=0,gr2=0,gr3=0,gr4=0,gr5=0;
+for(int l=0;l<nbv;l++)
+{
+     if(gr[][l]==1)
+       {
+        gr1[][l]=1;
+       }
+     if(gr[][l]==2)
+       {
+        gr2[][l]=1;
+       }
+	if(gr[][l]==3)
+       {
+        gr3[][l]=1;
+       }
+	if(gr[][l]==4)
+       {
+        gr4[][l]=1;
+       }
+	if(gr[][l]==5)
+       {
+        gr5[][l]=1;
+       }
+};
+
+// Function providing the tensor of elasticity at any place
+func CC=CC01*gr1+CC02*gr2+CC03*gr3+CC04*gr4+CC05*gr5;  
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// INITIAL CONDITIONS
+
+Sp11=0.;
+Sp22=0.;
+Sp33=0.;
+Sp23=0.;
+Sp13=0.;
+Sp12=0.;
+
+// Plastic strains (engineering writing)
+for (int l=0;l<nbv;l++)
+{
+    if (gr[][l]==1)
+	{
+		Sp11[][l] = 7.5268e-05;
+		Sp22[][l] = 0.003402;
+		Sp33[][l] = -0.0034773;
+		Sp23[][l] = 0.0052512;
+		Sp13[][l] = -0.0022188;
+		Sp12[][l] = 0.007461;
+    }
+	if (gr[][l]==2)
+	{
+		Sp11[][l] = -0.0065626;
+		Sp22[][l] = 0.0010584;
+		Sp33[][l] = 0.0055042;
+		Sp23[][l] = 0.0054499;
+		Sp13[][l] = 0.00039306;
+		Sp12[][l] = 0.005736;
+    }
+	if (gr[][l]==3)
+	{
+		Sp11[][l] = -0.0023564;
+		Sp22[][l] = 0.0057534;
+		Sp33[][l] = -0.0033971;
+		Sp23[][l] = 0.0042151;
+		Sp13[][l] = -0.0032345;
+		Sp12[][l] = 0.0068319;
+    }
+	if (gr[][l]==4)
+	{
+		Sp11[][l] = -0.0066959;
+		Sp22[][l] = 0.0035746;
+		Sp33[][l] = 0.0031213;
+		Sp23[][l] = 0.0033548;
+		Sp13[][l] = 0.0053971;
+		Sp12[][l] = 0.005093;
+    }
+    if (gr[][l]==5)
+	{
+		Sp11[][l] = 0.0025287;
+		Sp22[][l] = 0.0022164;
+		Sp33[][l] = -0.0047451;
+		Sp23[][l] = 0.0073256;
+		Sp13[][l] = 0.00029329;
+		Sp12[][l] = 0.0054165;
+	}
+}
+
+// BALANCE EQUATIONS
+// Compatible elastic strain field 
+
+macro S(u1,u2,u3) [dx(u1),dy(u2),dz(u3),(dy(u3)+dz(u2)),(dx(u3)+dz(u1)),(dx(u2)+dy(u1))] // end of macro
+
+// FEM VARIATIONAL FORMULATION FOR BALANCE OF STRESS
+
+varf balance ([u1,u2,u3],[v1,v2,v3],solver=UMFPACK,tgv=1e50) =	
+            int3d(Th) ( S(v1,v2,v3)'*CC*S(u1,u2,u3) )
+          + int3d(Th) ( S(v1,v2,v3)'*CC*Sp )
+		  +on(1,u1=-0.05,u2=0,u3=-0.1)
+		  +on(3,u1=0.05,u2=0.1,u3=0.1);
+
+matrix Mbalance = balance(Vh2,Vh2,tgv=1e50);
+set(Mbalance,solver=UMFPACK); // set solver for matrix inversion
+
+real[int] bbalance = balance(0,Vh2,tgv=1e50);
+u1[] = Mbalance^-1*bbalance;
+
+// Total strain field from balance equations 
+
+// Strain_11
+varf strain11 (uh,vh,solver=UMFPACK,tgv=1e50) = 
+            int3d(Th) ( vh*uh )
+          + int3d(Th) ( vh*dx(u1) );
+
+matrix MS11 = strain11(Vh,Vh,tgv=1e50);
+set(MS11,solver=UMFPACK); // set solver for matrix inversion
+
+real[int] bS11 = strain11(0,Vh,tgv=1e50);
+uh[]= MS11^-1*bS11;
+S11=uh;
+
+// Strain_22
+varf strain22 (uh,vh,solver=UMFPACK,tgv=1e50) = 
+            int3d(Th) ( vh*uh )
+          + int3d(Th) ( vh*dy(u2) );
+
+real[int] bS22 = strain22(0,Vh,tgv=1e50);
+uh[] = MS11^-1*bS22;
+S22=uh;
+
+// Strain_33
+varf strain33 (uh,vh,solver=UMFPACK,tgv=1e50) = 
+            int3d(Th) ( vh*uh )
+          + int3d(Th) ( vh*dz(u3) );
+
+real[int] bS33 = strain33(0,Vh,tgv=1e50);
+uh[] = MS11^-1*bS33;
+S33=uh;
+
+// Strain_23
+varf strain23 (uh,vh,solver=UMFPACK,tgv=1e50) = 
+            int3d(Th) ( vh*uh )
+          + int3d(Th) ( vh*(dy(u3)+dz(u2)) );		
+
+real[int] bS23 = strain23(0,Vh,tgv=1e50);
+uh[] = MS11^-1*bS23;
+S23=uh;
+
+// Strain_31
+varf strain31 (uh,vh,solver=UMFPACK,tgv=1e50) = 
+            int3d(Th) ( vh*uh )
+          + int3d(Th) ( vh*(dx(u3)+dz(u1)) );
+
+real[int] bS31 = strain31(0,Vh,tgv=1e50);
+uh[] = MS11^-1*bS31;
+S13=uh;
+
+// Strain_12
+varf strain12 (uh,vh,solver=UMFPACK,tgv=1e50) = 
+            int3d(Th) ( vh*uh )
+           + int3d(Th) ( vh*(dy(u1)+dx(u2)) );
+
+real[int] bS12 = strain12(0,Vh,tgv=1e50);
+uh[] = MS11^-1*bS12;
+S12=uh;
+
+////////////////////////////////////////////////////////////////////////
+// Stress tensor T from Hooke law
+
+for(int l=0;l<nbv;l++)
+ {
+  D=CC01*gr1[][l]+CC02*gr2[][l]+CC03*gr3[][l]+CC04*gr4[][l]+CC05*gr5[][l];
+   
+  T11[][l] = D(0,0)*(S11[][l]-Sp11[][l])+D(0,1)*(S22[][l]-Sp22[][l])+D(0,2)*(S33[][l]-Sp33[][l])+D(0,3)*(S23[][l]-Sp23[][l])+D(0,4)*(S13[][l]-Sp13[][l])+D(0,5)*(S12[][l]-Sp12[][l]);
+  T22[][l] = D(1,0)*(S11[][l]-Sp11[][l])+D(1,1)*(S22[][l]-Sp22[][l])+D(1,2)*(S33[][l]-Sp33[][l])+D(1,3)*(S23[][l]-Sp23[][l])+D(1,4)*(S13[][l]-Sp13[][l])+D(1,5)*(S12[][l]-Sp12[][l]);
+  T33[][l] = D(2,0)*(S11[][l]-Sp11[][l])+D(2,1)*(S22[][l]-Sp22[][l])+D(2,2)*(S33[][l]-Sp33[][l])+D(2,3)*(S23[][l]-Sp23[][l])+D(2,4)*(S13[][l]-Sp13[][l])+D(2,5)*(S12[][l]-Sp12[][l]);
+  T23[][l] = D(3,0)*(S11[][l]-Sp11[][l])+D(3,1)*(S22[][l]-Sp22[][l])+D(3,2)*(S33[][l]-Sp33[][l])+D(3,3)*(S23[][l]-Sp23[][l])+D(3,4)*(S13[][l]-Sp13[][l])+D(3,5)*(S12[][l]-Sp12[][l]);
+  T13[][l] = D(4,0)*(S11[][l]-Sp11[][l])+D(4,1)*(S22[][l]-Sp22[][l])+D(4,2)*(S33[][l]-Sp33[][l])+D(4,3)*(S23[][l]-Sp23[][l])+D(4,4)*(S13[][l]-Sp13[][l])+D(4,5)*(S12[][l]-Sp12[][l]);
+  T12[][l] = D(5,0)*(S11[][l]-Sp11[][l])+D(5,1)*(S22[][l]-Sp22[][l])+D(5,2)*(S33[][l]-Sp33[][l])+D(5,3)*(S23[][l]-Sp23[][l])+D(5,4)*(S13[][l]-Sp13[][l])+D(5,5)*(S12[][l]-Sp12[][l]);
+  }
+  
+real volume=(x1-x0)*(y1-y0)*(z1-z0);
+real T11moyen=int3d(Th) (T11/volume);
+real T22moyen=int3d(Th) (T22/volume);
+real T33moyen=int3d(Th) (T33/volume);
+real T23moyen=int3d(Th) (T23/volume);
+real T13moyen=int3d(Th) (T13/volume);
+real T12moyen=int3d(Th) (T12/volume);
+
+cout << "SIGMA(1,1)=" << T11moyen << ";" << "\n" ;
+cout << "SIGMA(2,2)=" << T22moyen << ";" << "\n" ;
+cout << "SIGMA(3,3)=" << T33moyen << ";" << "\n" ;
+cout << "SIGMA(2,3)=" << T23moyen << ";" << "\n" ;
+cout << "SIGMA(1,3)=" << T13moyen << ";" << "\n" ;
+cout << "SIGMA(1,2)=" << T12moyen << ";" << "\n" ;
+
+real T11G1=int3d(Th) (T11*gr1/(0.25*volume));
+real T11G2=int3d(Th) (T11*gr2/(0.1*volume));
+real T11G3=int3d(Th) (T11*gr3/(0.3*volume));
+real T11G4=int3d(Th) (T11*gr4/(0.2*volume));
+real T11G5=int3d(Th) (T11*gr5/(0.15*volume));
+
+real T33G1=int3d(Th) (T33*gr1/(0.25*volume));
+real T33G2=int3d(Th) (T33*gr2/(0.1*volume));
+real T33G3=int3d(Th) (T33*gr3/(0.3*volume));
+real T33G4=int3d(Th) (T33*gr4/(0.2*volume));
+real T33G5=int3d(Th) (T33*gr5/(0.15*volume));
+
+real T13G1=int3d(Th) (T13*gr1/(0.25*volume));
+real T13G2=int3d(Th) (T13*gr2/(0.1*volume));
+real T13G3=int3d(Th) (T13*gr3/(0.3*volume));
+real T13G4=int3d(Th) (T13*gr4/(0.2*volume));
+real T13G5=int3d(Th) (T13*gr5/(0.15*volume));
+
+cout << "SIGff_11=[" <<T11G1<<";"<<T11G2<<";"<<T11G3<<";"<<T11G4<<";"<<T11G5<<"]"<<"\n" ;
+cout << "SIGff_33=[" <<T33G1<<";"<<T33G2<<";"<<T33G3<<";"<<T33G4<<";"<<T33G5<<"]"<<"\n" ;
+cout << "SIGff_13=[" <<T13G1<<";"<<T13G2<<";"<<T13G3<<";"<<T13G4<<";"<<T13G5<<"]"<<"\n" ;
+
+// WRITE THE RESULTS IN A VTK FILE
+
+savevtk("inc_trimaterial5rand_v2_elastoplast.vtk",Th,gr,Sp11,Sp22,Sp33,Sp23,Sp13,Sp12,T11,T22,T33,T23,T13,T12,u1,u2,u3,S11,S22,S33,S23,S13,S12,
+dataname="GR Sp11 Sp22 Sp33 Sp23 Sp13 Sp12 T11 T22 T33 T23 T13 T12 u1 u2 u3 S11 S22 S33 S23 S13 S12",order=fforder);
+
