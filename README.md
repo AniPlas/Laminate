@@ -6,7 +6,7 @@ The laminate is submitted to a macroscopic homogeneous and remotely applied stre
 The phases of the laminate can have different grain volume fractions and can correspond to different materials or crystals.
 The phases are assumed perfectly bonded  along the planar interface whose normal is along e2. 
 The code "sigma_inc_laminate" is an application for a beta-titanium alloy with elongated grains loading in elasticity only,  modeled as laminate made of 100,000 different orientations and equal volume fraction. At the end, the maximal von Mises stress is plotted with respect to theta, a rotation around e3 of the uniaxial stress of magnitude 300 MPa.
-The code "sigma_inc_rand_loop_ac" perform comparisons of the maximum von Mises stress obtained with the laminate model and elastic self-consistent
+The code "sigma_inc_rand_loop_ac" performs comparisons of the maximum von Mises stress obtained with the laminate model and elastic self-consistent
 models (SC) considering oblate spheroidal grains (𝑎 = 𝑏 > 𝑐) of different aspect ratios (𝑎/𝑐) in the case of 100, 000 uniform orientations. 
 A reference for the model can be found in:
 
